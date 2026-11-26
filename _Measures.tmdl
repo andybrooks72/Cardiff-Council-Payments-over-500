@@ -1,0 +1,281 @@
+createOrReplace
+
+	ref table '_Measures'
+		lineageTag: 59ad9463-6a2a-47d8-86e7-fcf680566ae8
+
+		/// Sum of all payment line amounts over £500, across both financial years.
+		measure 'Total Spend' = SUM(FactPayments[Amount])
+			formatString: "£"#,0.00;-"£"#,0.00;"£"#,0.00
+			lineageTag: b40b41dc-d192-4647-b7bc-c22bfc42eed5
+			displayFolder: Core
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Count of individual payment line records. Note: this is line-level, not invoice-level — a single invoice may span multiple lines.
+		measure 'Payment Lines' = COUNTROWS(FactPayments)
+			formatString: 0
+			lineageTag: 1bd02ae2-a912-4bf7-a3e6-5678469d65c3
+			displayFolder: Core
+
+		/// Count of unique suppliers with at least one payment in the current filter context.
+		measure 'Distinct Suppliers' = DISTINCTCOUNT(DimSupplier[SupplierKey])
+			formatString: 0
+			lineageTag: 7a53783f-4fd6-4919-94ec-2ad0b3bf4d09
+			displayFolder: Core
+
+		/// Total Spend divided by Payment Lines.
+		measure 'Average Line Value' =
+				DIVIDE(
+					[Total Spend],
+					[Payment Lines]
+				)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 7468eee4-6ffe-42f6-9c3c-ac19ef369d10
+			displayFolder: Core
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Total Spend for the same period one year earlier, using DATEADD. Returns blank for 2017/18 as there is no prior year in this dataset.
+		measure 'Spend PY' =
+				CALCULATE(
+					[Total Spend],
+					DATEADD(
+						DimDate[Date],
+						-1,
+						YEAR
+					)
+				)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 76d2927b-62d6-4112-813c-28181647f818
+			displayFolder: Time Intelligence
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Total Spend minus Spend PY.
+		measure 'Spend YoY Change' = [Total Spend] - [Spend PY]
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 9b33d083-79ef-43a6-8c3d-dfb20315aae0
+			displayFolder: Time Intelligence
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Year-on-year % change in Total Spend.
+		measure 'Spend YoY %' =
+				DIVIDE(
+					[Total Spend] - [Spend PY],
+					[Spend PY]
+				)
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: 6e912f6f-be41-4129-9642-e92ac32e0a16
+			displayFolder: Time Intelligence
+
+		/// Total Spend excluding the "REDACTED" supplier, used wherever supplier-level rankings or comparisons are shown.
+		measure 'Total Spend (Excl Redacted)' =
+				CALCULATE(
+					[Total Spend],
+					DimSupplier[IsRedacted] = FALSE
+				)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: b696836c-1c6f-45a0-9e25-4c08659a2bd5
+			displayFolder: Supplier Concentration
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Rank of each supplier by Total Spend (Excl Redacted), descending, 1 = highest spend.
+		measure 'Supplier Spend Rank' =
+				RANKX(
+					FILTER(
+						ALL(DimSupplier),
+						DimSupplier[IsRedacted] = FALSE
+					),
+					CALCULATE([Total Spend (Excl Redacted)]),
+					,
+					DESC
+				)
+			formatString: 0
+			lineageTag: d30f484c-a5ef-4490-93f6-25d52fabc56a
+			displayFolder: Supplier Concentration
+
+		/// Combined Total Spend (Excl Redacted) of the 10 highest-spending suppliers.
+		measure 'Top 10 Supplier Spend' =
+				CALCULATE(
+					[Total Spend (Excl Redacted)],
+					TOPN(
+						10,
+						ALL(DimSupplier[Supplier]),
+						CALCULATE([Total Spend (Excl Redacted)]),
+						DESC
+					)
+				)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 7d10de52-7ab1-4ac4-8fe2-348b666476ad
+			displayFolder: Supplier Concentration
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Top 10 Supplier Spend as a % of Total Spend (Excl Redacted).
+		measure 'Top 10 Supplier Share' =
+				DIVIDE(
+					[Top 10 Supplier Spend],
+					[Total Spend (Excl Redacted)]
+				)
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: 49843cf6-419b-46b3-a68b-2c78d8031795
+			displayFolder: Supplier Concentration
+
+		/// Current category's Total Spend as a % of the grand total across all categories.
+		measure 'Category Share of Total' =
+				DIVIDE(
+					[Total Spend],
+					CALCULATE(
+						[Total Spend],
+						ALL(DimCategory)
+					)
+				)
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: 9adb9eec-050e-46af-8da8-d68ddbe983e2
+			displayFolder: Category Analysis
+
+		/// Year-on-year % change in Total Spend for the current category filter.
+		measure 'Category YoY %' =
+				VAR CurrYear = [Total Spend]
+				VAR PrevYear = CALCULATE(
+					[Total Spend],
+					DATEADD(
+						DimDate[Date],
+						-1,
+						YEAR
+					)
+				)
+				RETURN
+					DIVIDE(
+						CurrYear - PrevYear,
+						PrevYear
+					)
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: be538164-1ffb-4400-8db6-a408a3725b36
+			displayFolder: Category Analysis
+
+		/// Total Spend attributed to the supplier named "REDACTED" — likely payments to individuals rather than organisations.
+		measure 'Redacted Spend' =
+				CALCULATE(
+					[Total Spend],
+					DimSupplier[IsRedacted] = TRUE
+				)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 235003f9-de6d-4632-a703-3dcb1f72a1db
+			displayFolder: Data Quality Flags
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Redacted Spend as a % of Total Spend. Included for transparency; should be shown on the "About the data" page, not in supplier rankings.
+		measure 'Redacted Share' =
+				DIVIDE(
+					[Redacted Spend],
+					[Total Spend]
+				)
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: 0cdc3812-d003-427c-adaa-d656d49ceea3
+			displayFolder: Data Quality Flags
+
+		/// Average monthly spend over the current filter context, calculated as Total Spend divided by the number of distinct financial months in context.
+		measure 'Avg Monthly Spend' =
+				DIVIDE(
+					[Total Spend],
+					DISTINCTCOUNT(DimDate[Financial Month Number])
+				)
+			formatString: "£"#,0.00;-"£"#,0.00;"£"#,0.00
+			lineageTag: ca8e6fe8-53ce-4213-8341-4d4d87ca6405
+			displayFolder: Time Intelligence
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Total Spend as a % above or below the average month, for spotting seasonal spikes (e.g. March year-end).
+		measure 'Spend Index vs Avg' =
+				DIVIDE(
+					[Total Spend],
+					[Avg Monthly Spend]
+				) - 1
+			formatString: 0%;-0%;0%
+			lineageTag: 9dad0a33-14c8-417e-96c9-6bdaf96ada2c
+			displayFolder: Time Intelligence
+
+		/// Cumulative supplier spend, calculated as the sum of Total Spend (Excl Redacted) for all suppliers at or above the current supplier's rank.
+		measure 'Cumulative Supplier Spend' =
+				VAR CurrentRank = [Supplier Spend Rank]
+				RETURN
+					CALCULATE(
+						[Total Spend (Excl Redacted)],
+						FILTER(
+							ALL(DimSupplier),
+							DimSupplier[IsRedacted] = FALSE
+							&& [Supplier Spend Rank] <= CurrentRank
+						)
+					)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 57c07bcc-103d-46ef-874d-643a21ceb18f
+			displayFolder: Supplier Concentration
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		/// Cumulative Supplier Spend as a % of the full (unfiltered) supplier total, used to draw the Pareto chart's cumulative line.
+		measure 'Cumulative Supplier %' =
+				DIVIDE(
+					[Cumulative Supplier Spend],
+					[Total Spend All Suppliers (Excl Redacted)]
+				)
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: 7a386526-771d-492f-945c-7680ac1bce02
+			displayFolder: Supplier Concentration
+
+		/// Count of distinct suppliers excluding the "REDACTED" entry, used as a helper for other supplier-concentration measures.
+		measure 'Supplier Count (Excl Redacted)' =
+				CALCULATE(
+					DISTINCTCOUNT(DimSupplier[Supplier]),
+					DimSupplier[IsRedacted] = FALSE
+				)
+			formatString: 0
+			lineageTag: 0bad443d-fb41-433b-a699-87f1ba22c2e2
+			displayFolder: Supplier Concentration
+			isHidden
+
+		/// Constant reference value (80%) used to draw the 80% threshold line on the Pareto chart.
+		measure '80 Percent Line' = 0.8
+			lineageTag: cd7c4e42-f17d-4762-ba8c-94819658a5b0
+			displayFolder: Supplier Concentration
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		/// Grand total of Total Spend (Excl Redacted), ignoring any supplier-level filter from the visual. Used only as the fixed denominator in Cumulative Supplier %.
+		measure 'Total Spend All Suppliers (Excl Redacted)' =
+				CALCULATE(
+					[Total Spend],
+					ALL(DimSupplier),
+					DimSupplier[IsRedacted] = FALSE
+				)
+			formatString: "£"#,0.###############;-"£"#,0.###############;"£"#,0.###############
+			lineageTag: 8f732b59-0b45-43cb-a222-85df13a04d14
+			displayFolder: Supplier Concentration
+			isHidden
+
+			annotation PBI_FormatHint = {"currencyCulture":"en-GB"}
+
+		column Column
+			isHidden
+			formatString: 0
+			lineageTag: 7c391c3a-3f11-4bfc-bde2-3201dcbbbb50
+			summarizeBy: sum
+			isNameInferred
+			sourceColumn: [Column]
+
+			annotation SummarizationSetBy = Automatic
+
+		partition _Measures = calculated
+			mode: import
+			source =
+					ROW(
+						"Column", BLANK()
+					)
+
+		annotation PBI_Id = f43c34969448432581c1a36ae0060084
+

@@ -1,0 +1,13 @@
+{
+  "name": "Cardiff Council Spend",
+  "dataColors": ["#1B3A5C", "#3D7A99", "#6FA8BF", "#C7D9E0", "#D98E04", "#9B9B9B"],
+  "background": "#FFFFFF",
+  "foreground": "#1A1A1A",
+  "tableAccent": "#1B3A5C",
+  "textClasses": {
+    "title": { "fontFace": "Lato", "fontSize": 12, "color": "#1A1A1A" },
+    "header": { "fontFace": "Lato", "fontSize": 11, "color": "#1A1A1A" },
+    "label": { "fontFace": "Lato", "fontSize": 10, "color": "#1A1A1A" },
+    "callout": { "fontFace": "Lato", "fontSize": 32, "color": "#1B3A5C" }
+  }
+}
